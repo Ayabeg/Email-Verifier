@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import sqlite3
 import tempfile
 import threading
@@ -37,7 +38,7 @@ class RateLimiter:
         self._next_allowed = 0.0
         self._lock = threading.Lock()
 
-    def wait(self) -> None:
+    def wait(self, cancel_event: threading.Event | None = None) -> None:
         if self.interval == 0:
             return
         with self._lock:
@@ -45,7 +46,10 @@ class RateLimiter:
             target = max(now, self._next_allowed)
             self._next_allowed = target + self.interval
         delay = target - now
-        if delay > 0:
+        if delay > 0 and cancel_event is not None:
+            if cancel_event.wait(delay):
+                return
+        elif delay > 0:
             time.sleep(delay)
 
 
@@ -59,8 +63,6 @@ def iter_input_records(
     source = Path(path)
     if not source.is_file():
         raise FileNotFoundError(str(source))
-    if source.stat().st_size > max_bytes:
-        raise ValueError(f"input file exceeds the {max_bytes} byte limit")
     selected = input_format
     if selected == "auto":
         selected = "csv" if source.suffix.lower() == ".csv" else "txt"
@@ -68,6 +70,8 @@ def iter_input_records(
         raise ValueError("input format must be csv, txt, or auto")
     if selected == "txt":
         with source.open("r", encoding="utf-8-sig", newline="") as handle:
+            if os.fstat(handle.fileno()).st_size > max_bytes:
+                raise ValueError(f"input file exceeds the {max_bytes} byte limit")
             for input_id, line in enumerate(handle, start=1):
                 original = line.rstrip("\r\n")
                 yield InputRecord(
@@ -78,6 +82,8 @@ def iter_input_records(
                 )
         return
     with source.open("r", encoding="utf-8-sig", newline="") as handle:
+        if os.fstat(handle.fileno()).st_size > max_bytes:
+            raise ValueError(f"input file exceeds the {max_bytes} byte limit")
         reader = csv.DictReader(handle)
         if not reader.fieldnames:
             raise ValueError("CSV input must include a header row")
@@ -107,8 +113,8 @@ class BulkVerifier:
         batch_size: int | None = None,
         cancel_event: threading.Event | None = None,
     ) -> None:
-        if concurrency < 1:
-            raise ValueError("concurrency must be at least 1")
+        if concurrency < 1 or concurrency > 64:
+            raise ValueError("concurrency must be between 1 and 64")
         self.engine = engine
         self.concurrency = concurrency
         self.batch_size = max(concurrency, batch_size or concurrency * 4)
@@ -181,10 +187,13 @@ class BulkVerifier:
                     except Exception as exc:  # one bad address must not abort a batch
                         for record in batch:
                             if record.email is not None and _dedupe_key(record.email) == key:
+                                error = (
+                                    "cancelled"
+                                    if self.cancel_event.is_set()
+                                    else f"verification_error:{type(exc).__name__}"
+                                )
                                 output[record.input_id] = BulkRecord(
-                                    record.input_id,
-                                    record.original,
-                                    error=f"verification_error:{type(exc).__name__}",
+                                    record.input_id, record.original, error=error
                                 )
             connection.commit()
         for record in batch:
@@ -195,7 +204,9 @@ class BulkVerifier:
     def _verify_one(self, email: str):
         if self.cancel_event.is_set():
             raise RuntimeError("cancelled")
-        self.limiter.wait()
+        self.limiter.wait(self.cancel_event)
+        if self.cancel_event.is_set():
+            raise RuntimeError("cancelled")
         return self.engine.verify(email)
 
 

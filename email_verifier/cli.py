@@ -26,7 +26,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     bulk = subparsers.add_parser("bulk", help="stream and verify a CSV or TXT file")
     bulk.add_argument("input", type=Path)
-    bulk.add_argument("--output", type=Path)
+    output_group = bulk.add_mutually_exclusive_group()
+    output_group.add_argument("--output", type=Path)
+    output_group.add_argument(
+        "--stdout", action="store_true", help="explicitly write raw rows to stdout"
+    )
     bulk.add_argument("--output-format", choices=["csv", "jsonl"], default="csv")
     bulk.add_argument("--input-format", choices=["auto", "csv", "txt"], default="auto")
     bulk.add_argument("--email-column")
@@ -88,6 +92,10 @@ def main(argv: list[str] | None = None) -> int:
                 json.dumps(result.to_dict(), ensure_ascii=False, indent=2 if args.pretty else None)
             )
             return 0
+        if args.concurrency > 64:
+            raise ValueError("concurrency cannot exceed 64")
+        if not args.output and not args.stdout:
+            raise ValueError("bulk requires --output or explicit --stdout")
         engine = _engine_from_args(args)
         verifier = BulkVerifier(engine, concurrency=args.concurrency, rate_limit=args.rate_limit)
         records = verifier.verify_records(
@@ -100,9 +108,9 @@ def main(argv: list[str] | None = None) -> int:
         )
         if args.output:
             count = (
-                write_csv(records, args.output)
+                write_csv(records, args.output, input_path=args.input)
                 if args.output_format == "csv"
-                else write_jsonl(records, args.output)
+                else write_jsonl(records, args.output, input_path=args.input)
             )
             print(
                 json.dumps(

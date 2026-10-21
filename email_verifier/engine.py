@@ -28,6 +28,7 @@ class VerificationConfig:
     dns_timeout: float = 3.0
     smtp_timeout: float = 8.0
     smtp_tls_mode: str = "opportunistic"
+    max_mx_hosts: int = 3
     max_catch_all_probes: int = 1
     classifier_data: ClassifierData | None = None
     resolver: DomainResolver | None = None
@@ -49,6 +50,7 @@ class VerificationEngine:
                 sender=self.config.sender,
                 timeout=self.config.smtp_timeout,
                 tls_mode=self.config.smtp_tls_mode,
+                max_hosts=self.config.max_mx_hosts,
             )
         )
 

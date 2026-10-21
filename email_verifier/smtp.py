@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ipaddress
 import smtplib
 import socket
 from dataclasses import dataclass
@@ -14,6 +15,7 @@ class SmtpConfig:
     port: int = 25
     tls_mode: str = "opportunistic"  # disabled, opportunistic, required
     helo_name: str = "email-verifier.local"
+    max_hosts: int = 3
 
 
 class SmtpVerifier:
@@ -26,7 +28,7 @@ class SmtpVerifier:
         attempted: list[str] = []
         last_temporary: SmtpResult | None = None
         last_unsupported: SmtpResult | None = None
-        for host in hosts:
+        for host in hosts[: max(1, self.config.max_hosts)]:
             attempted.append(host)
             result = self._verify_host(recipient, host, attempted)
             if result.outcome in {"accepted", "rejected", "ambiguous"}:
@@ -51,7 +53,17 @@ class SmtpVerifier:
         client: smtplib.SMTP | None = None
         tls_used = False
         try:
-            client = smtplib.SMTP(host=host, port=self.config.port, timeout=self.config.timeout)
+            public_ip = _select_public_address(host, self.config.port)
+            if public_ip is None:
+                return SmtpResult(
+                    outcome="unsupported",
+                    response_message="MX target did not resolve to a public address",
+                    mx_host=host,
+                    attempted_hosts=attempted,
+                )
+            client = smtplib.SMTP(timeout=self.config.timeout)
+            client.connect(public_ip, self.config.port)
+            client._host = host  # type: ignore[attr-defined]  # preserve MX name for STARTTLS SNI
             client.ehlo(self.config.helo_name)
             if self.config.tls_mode != "disabled" and client.has_extn("starttls"):
                 client.starttls()
@@ -59,7 +71,17 @@ class SmtpVerifier:
                 tls_used = True
             elif self.config.tls_mode == "required":
                 return SmtpResult(outcome="unsupported", mx_host=host, attempted_hosts=attempted)
-            mail_code, mail_message = client.mail(self.config.sender)
+            requires_smtputf8 = any(ord(char) > 127 for char in recipient + self.config.sender)
+            if requires_smtputf8 and not client.has_extn("smtputf8"):
+                return SmtpResult(
+                    outcome="unsupported",
+                    response_message="server does not advertise SMTPUTF8",
+                    mx_host=host,
+                    attempted_hosts=attempted,
+                    tls_used=tls_used,
+                )
+            mail_options = ["SMTPUTF8"] if requires_smtputf8 else []
+            mail_code, mail_message = client.mail(self.config.sender, options=mail_options)
             if not 200 <= mail_code < 300:
                 return SmtpResult(
                     outcome="temporary" if 400 <= mail_code < 500 else "unsupported",
@@ -87,7 +109,7 @@ class SmtpVerifier:
                 attempted_hosts=attempted,
                 tls_used=tls_used,
             )
-        except (smtplib.SMTPException, socket.timeout, TimeoutError, OSError) as exc:
+        except (smtplib.SMTPException, socket.timeout, TimeoutError, OSError, UnicodeError) as exc:
             return SmtpResult(
                 outcome="unreachable",
                 response_message=str(exc),
@@ -112,6 +134,21 @@ def _response_outcome(code: int) -> str:
     if 500 <= code < 600:
         return "rejected"
     return "ambiguous"
+
+
+def _select_public_address(host: str, port: int) -> str | None:
+    try:
+        addresses = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    except (OSError, socket.gaierror):
+        return None
+    for address in addresses:
+        candidate = address[4][0]
+        try:
+            if ipaddress.ip_address(candidate).is_global:
+                return candidate
+        except ValueError:
+            continue
+    return None
 
 
 def _decode(value: bytes | str | None) -> str | None:

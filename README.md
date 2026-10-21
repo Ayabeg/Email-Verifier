@@ -44,9 +44,12 @@ TXT files are streamed one address per line. CSV files are streamed and use a co
 ```bash
 email-verifier bulk addresses.txt --output results.csv --concurrency 4 --rate-limit 2
 email-verifier bulk addresses.csv --output results.jsonl --output-format jsonl --email-column work_email
+email-verifier bulk addresses.txt --stdout --output-format jsonl
 ```
 
 Bulk processing is bounded by batches, uses a disk-backed SQLite result cache to deduplicate repeated normalized addresses, preserves input row IDs and original values, and continues after malformed rows or individual verification errors. CSV exports escape formula-like cells to reduce spreadsheet formula injection risk. The default upload/read limit is 50 MiB and can be changed with `--max-file-bytes`.
+
+Bulk mode requires an explicit `--output` path or `--stdout` because raw addresses and results are sensitive. Output files are created with mode `0600`, symlink targets are rejected, and the output path cannot equal the input path.
 
 ## Configuration and datasets
 
@@ -62,6 +65,8 @@ CLI flags take precedence over the example environment settings in `.env.example
 - `export.py`: CSV/JSONL output and formula-injection defense.
 
 Network and SMTP behavior are injected behind interfaces, so the test suite uses deterministic fakes and does not contact arbitrary mailboxes or external providers.
+
+When SMTP is enabled, at most three MX hosts are attempted per address by default. MX targets are resolved before connection and non-public destinations are rejected to reduce SSRF-style risk. These controls do not replace operator authorization or provider terms.
 
 ## Privacy and responsible operation
 

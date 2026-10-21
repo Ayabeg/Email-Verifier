@@ -72,12 +72,17 @@ class DnsPythonResolver:
         with self._locks_guard:
             lock = self._locks.setdefault(domain, threading.Lock())
         with lock:
-            cached = self.cache.get(domain)
-            if cached is not None:
-                return cached
-            result = self._lookup_uncached(domain)
-            self.cache.put(domain, result)
-            return result
+            try:
+                cached = self.cache.get(domain)
+                if cached is not None:
+                    return cached
+                result = self._lookup_uncached(domain)
+                self.cache.put(domain, result)
+                return result
+            finally:
+                with self._locks_guard:
+                    if self._locks.get(domain) is lock:
+                        self._locks.pop(domain, None)
 
     def _lookup_uncached(self, domain: str) -> DnsResult:
         if dns is None:
