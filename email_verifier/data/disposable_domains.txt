@@ -1,0 +1,11 @@
+# A conservative starter dataset. Supply --classifier-file to replace it.
+10minutemail.com
+disposablemail.com
+getnada.com
+guerrillamail.com
+maildrop.cc
+mailinator.com
+sharklasers.com
+temp-mail.org
+trashmail.com
+yopmail.com
