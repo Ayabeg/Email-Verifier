@@ -10,6 +10,46 @@ from urllib.parse import parse_qs
 from .engine import VerificationConfig, VerificationEngine
 
 MAX_REQUEST_BYTES = 8 * 1024
+DEFAULT_SENDER = "verif.mail.evotechly@gmail.com"
+
+STATUS_LABELS = {
+    "valid": "Likely deliverable",
+    "invalid": "Invalid address",
+    "risky": "Potential risk",
+    "unknown": "Not enough information",
+    "unreachable": "Checks could not finish",
+}
+
+STATUS_MEANINGS = {
+    "valid": (
+        "The checks found positive evidence, but this still does not guarantee inbox delivery."
+    ),
+    "invalid": (
+        "The checks found reliable evidence that the address or its mail domain is invalid."
+    ),
+    "risky": (
+        "The address may work, but it has a risk such as a role mailbox, disposable domain, "
+        "or catch-all behavior."
+    ),
+    "unknown": "The address looks possible, but the mailbox was not confirmed.",
+    "unreachable": (
+        "A DNS or mail-server check could not complete. This is not proof that the address "
+        "is invalid."
+    ),
+}
+
+REASON_LABELS = {
+    "classification.disposable_domain": "The domain is on the disposable-email list.",
+    "classification.role_based": "This is a shared role address such as info@ or support@.",
+    "dns.disabled": "DNS checking was turned off.",
+    "domain.no_mail_routing": "The domain has no usable mail routing records.",
+    "domain.nxdomain": "The domain does not exist.",
+    "mailbox.not_checked": "The individual mailbox was not checked.",
+    "smtp.ambiguous_acceptance": "The mail server accepted the check ambiguously.",
+    "smtp.permanent_rejection": "The mail server permanently rejected the address.",
+    "smtp.temporary": "The mail server temporarily deferred the check.",
+    "smtp.unreachable": "The mail server could not be reached.",
+}
 
 
 PAGE_TEMPLATE = """<!doctype html>
@@ -24,7 +64,9 @@ PAGE_TEMPLATE = """<!doctype html>
     main { max-width: 820px; margin: 0 auto; padding: 48px 20px; }
     h1 { margin-bottom: 8px; }
     .muted { color: #9ca3af; }
-    form, pre { background: #172235; border: 1px solid #334155; border-radius: 12px; }
+    form, .result-card, details {
+      background: #172235; border: 1px solid #334155; border-radius: 12px;
+    }
     form { display: grid; gap: 16px; padding: 20px; margin-top: 24px; }
     label { display: grid; gap: 6px; }
     input[type=email], input[type=text] {
@@ -39,6 +81,19 @@ PAGE_TEMPLATE = """<!doctype html>
     }
     pre { overflow: auto; padding: 16px; line-height: 1.45; white-space: pre-wrap; }
     .notice { padding: 12px 14px; border-left: 4px solid #38bdf8; background: #0f2740; }
+    .result-card { margin-top: 24px; padding: 20px; }
+    .result-card h2 { margin-top: 0; }
+    .status { display: inline-block; padding: 6px 10px; border-radius: 999px; font-weight: 700; }
+    .status-valid { border-color: #22c55e; }
+    .status-valid .status { background: #14532d; color: #bbf7d0; }
+    .status-invalid { border-color: #ef4444; }
+    .status-invalid .status { background: #7f1d1d; color: #fecaca; }
+    .status-risky { border-color: #f59e0b; }
+    .status-risky .status { background: #78350f; color: #fef3c7; }
+    .status-unknown, .status-unreachable { border-color: #64748b; }
+    .status-unknown .status, .status-unreachable .status { background: #334155; color: #e2e8f0; }
+    details { margin-top: 16px; padding: 12px 16px; }
+    summary { cursor: pointer; font-weight: 700; }
   </style>
 </head>
 <body>
@@ -52,8 +107,8 @@ PAGE_TEMPLATE = """<!doctype html>
       <label>Email address
         <input type="email" name="email" value="__EMAIL__" required autocomplete="off" autofocus>
       </label>
-      <label>Sender identity for SMTP (only used when SMTP is enabled)
-        <input type="email" name="sender" value="verify@example.com" autocomplete="off">
+      <label>Sender identity for SMTP (no email is sent)
+        <input type="email" name="sender" value="__DEFAULT_SENDER__" autocomplete="off">
       </label>
       <div class="checks">
         <label><input type="checkbox" name="dns"__DNS_CHECKED__> DNS</label>
@@ -79,11 +134,36 @@ def render_page(
 ) -> bytes:
     result_html = ""
     if result is not None:
+        status = str(result.get("status", "unknown"))
+        status_class = status if status in STATUS_LABELS else "unknown"
+        label = STATUS_LABELS.get(status, "Unknown result")
+        meaning = STATUS_MEANINGS.get(status, STATUS_MEANINGS["unknown"])
+        reasons = result.get("reason_codes") or []
+        reason = REASON_LABELS.get(str(reasons[0]), "The available checks were not conclusive.")
+        normalized = result.get("normalized_email") or "Not available"
+        stages = result.get("stages_completed") or ["None"]
         serialized = html.escape(json.dumps(result, ensure_ascii=False, indent=2))
-        result_html = f"<h2>Result</h2><pre>{serialized}</pre>"
+        result_html = f"""
+        <section class="result-card status-{status_class}" aria-live="polite">
+          <h2>Result</h2>
+          <p><span class="status">{html.escape(label)}</span></p>
+          <p><strong>What this means:</strong> {html.escape(meaning)}</p>
+          <p><strong>Main reason:</strong> {html.escape(reason)}</p>
+          <ul>
+            <li><strong>Email:</strong> {html.escape(str(result.get("original_email", "")))}</li>
+            <li><strong>Normalized:</strong> {html.escape(str(normalized))}</li>
+            <li><strong>Checks completed:</strong> {html.escape(" → ".join(map(str, stages)))}</li>
+          </ul>
+          <details>
+            <summary>Show technical details</summary>
+            <pre>{serialized}</pre>
+          </details>
+        </section>
+        """
     page = PAGE_TEMPLATE
     replacements = {
         "__EMAIL__": html.escape(email, quote=True),
+        "__DEFAULT_SENDER__": DEFAULT_SENDER,
         "__DNS_CHECKED__": " checked" if dns else "",
         "__SMTP_CHECKED__": " checked" if smtp else "",
         "__CATCH_ALL_CHECKED__": " checked" if catch_all else "",
@@ -116,14 +196,14 @@ class LocalRequestHandler(BaseHTTPRequestHandler):
             return
         fields = parse_qs(self.rfile.read(length).decode("utf-8", errors="replace"))
         email = fields.get("email", [""])[0]
-        sender = fields.get("sender", ["verify@example.com"])[0]
+        sender = fields.get("sender", [DEFAULT_SENDER])[0]
         smtp_enabled = "smtp" in fields
         catch_all_enabled = smtp_enabled and "catch_all" in fields
         config = VerificationConfig(
             dns_enabled="dns" in fields,
             smtp_enabled=smtp_enabled,
             catch_all_enabled=catch_all_enabled,
-            sender=sender or "verify@example.com",
+            sender=sender or DEFAULT_SENDER,
         )
         try:
             result = VerificationEngine(config).verify(email).to_dict()
@@ -172,7 +252,7 @@ def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPSer
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run the local Email-Verifier test page")
     parser.add_argument("--host", default="127.0.0.1", help="bind address (default: 127.0.0.1)")
-    parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--port", type=int, default=8765)
     args = parser.parse_args(argv)
     if args.host not in {"127.0.0.1", "::1", "localhost"}:
         parser.error("the local test server only permits loopback hosts")

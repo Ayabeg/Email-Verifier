@@ -24,7 +24,7 @@ class VerificationConfig:
     dns_enabled: bool = True
     smtp_enabled: bool = False
     catch_all_enabled: bool = False
-    sender: str = "verify@example.com"
+    sender: str = "verif.mail.evotechly@gmail.com"
     dns_timeout: float = 3.0
     smtp_timeout: float = 8.0
     smtp_tls_mode: str = "opportunistic"

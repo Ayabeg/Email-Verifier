@@ -50,7 +50,7 @@ Start the localhost-only browser interface with:
 make serve
 ```
 
-Then open <http://127.0.0.1:8000>. The page uses the same engine as the CLI,
+Then open <http://127.0.0.1:8765>. The page uses the same engine as the CLI,
 defaults to DNS-only verification, and keeps SMTP and catch-all probing behind
 explicit opt-in checkboxes. Stop it with `Ctrl+C`.
 
@@ -60,7 +60,7 @@ DNS checks are enabled by default. SMTP probing is opt-in because it can be rate
 
 ```bash
 email-verifier verify person@example.com --pretty
-email-verifier verify person@example.com --smtp --sender verify@example.com
+email-verifier verify person@example.com --smtp --sender verif.mail.evotechly@gmail.com
 ```
 
 `--smtp` performs `EHLO`, optional opportunistic `STARTTLS`, `MAIL FROM`, and `RCPT TO` without sending a message. `--catch-all` enables at most one randomized recipient probe after a positive SMTP result. Do not enable either option against domains you do not have permission to assess.

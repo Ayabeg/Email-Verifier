@@ -55,7 +55,8 @@ def _add_engine_options(parser: argparse.ArgumentParser) -> None:
         "--catch-all", action="store_true", help="enable one controlled catch-all probe per address"
     )
     parser.add_argument(
-        "--sender", default=os.getenv("EMAIL_VERIFIER_SENDER", "verify@example.com")
+        "--sender",
+        default=os.getenv("EMAIL_VERIFIER_SENDER", "verif.mail.evotechly@gmail.com"),
     )
     parser.add_argument(
         "--dns-timeout", type=float, default=float(os.getenv("EMAIL_VERIFIER_DNS_TIMEOUT", "3"))

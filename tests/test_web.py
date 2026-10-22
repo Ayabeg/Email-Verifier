@@ -29,6 +29,7 @@ class LocalWebTests(unittest.TestCase):
         response, payload = self.request("GET", "/")
         self.assertEqual(response.status, 200)
         self.assertIn(b"Email Verifier", payload)
+        self.assertIn(b"verif.mail.evotechly@gmail.com", payload)
         self.assertEqual(
             response.getheader("Content-Security-Policy"),
             "default-src 'none'; style-src 'unsafe-inline'",
@@ -40,13 +41,14 @@ class LocalWebTests(unittest.TestCase):
         )
         self.assertEqual(response.status, 200)
         page = payload.decode("utf-8")
-        self.assertIn("&quot;status&quot;: &quot;unknown&quot;", page)
-        self.assertIn("&quot;dns.disabled&quot;", page)
+        self.assertIn("Not enough information", page)
+        self.assertIn("DNS checking was turned off.", page)
+        self.assertIn("Show technical details", page)
 
     def test_malformed_address_is_rendered_as_invalid(self):
         response, payload = self.request("POST", "/verify", "email=not-an-email")
         self.assertEqual(response.status, 200)
-        self.assertIn("&quot;status&quot;: &quot;invalid&quot;", payload.decode("utf-8"))
+        self.assertIn("Invalid address", payload.decode("utf-8"))
 
     def test_unknown_route_is_not_found(self):
         response, _ = self.request("GET", "/missing")

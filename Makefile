@@ -20,4 +20,4 @@ demo:
 	./scripts/demo.sh
 
 serve:
-	$(PYTHON) -m email_verifier.web --host 127.0.0.1 --port 8000
+	$(PYTHON) -m email_verifier.web --host 127.0.0.1 --port 8765
