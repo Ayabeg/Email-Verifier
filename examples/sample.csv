@@ -1,0 +1,6 @@
+name,email
+reserved example,person@example.com
+role address,info@example.com
+duplicate,person@example.com
+malformed,not-an-email
+empty,

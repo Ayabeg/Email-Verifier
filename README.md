@@ -26,6 +26,22 @@ python -m venv .venv
 python -m pip install -e '.[dev]'
 ```
 
+## Local test environment
+
+The repository includes a small deterministic smoke environment. It uses only
+reserved `example.com` addresses and disables DNS, SMTP, and catch-all probes,
+so it is safe to run offline and does not contact mail providers.
+
+```bash
+make setup
+make check
+make demo
+```
+
+If you already have the dependencies installed, run `./scripts/demo.sh`
+directly. To perform an intentional live DNS check, use the single-address
+command without `--no-dns`; SMTP and catch-all checks remain explicit opt-ins.
+
 ## Single address
 
 DNS checks are enabled by default. SMTP probing is opt-in because it can be rate-limited or refused by providers.
