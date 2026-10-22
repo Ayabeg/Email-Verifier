@@ -1,4 +1,4 @@
-.PHONY: setup test lint check demo
+.PHONY: setup test lint check demo serve
 
 VENV := .venv
 PYTHON := $(VENV)/bin/python
@@ -18,3 +18,6 @@ check: test lint
 
 demo:
 	./scripts/demo.sh
+
+serve:
+	$(PYTHON) -m email_verifier.web --host 127.0.0.1 --port 8000

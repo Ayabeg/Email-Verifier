@@ -42,6 +42,18 @@ If you already have the dependencies installed, run `./scripts/demo.sh`
 directly. To perform an intentional live DNS check, use the single-address
 command without `--no-dns`; SMTP and catch-all checks remain explicit opt-ins.
 
+## Local browser interface
+
+Start the localhost-only browser interface with:
+
+```bash
+make serve
+```
+
+Then open <http://127.0.0.1:8000>. The page uses the same engine as the CLI,
+defaults to DNS-only verification, and keeps SMTP and catch-all probing behind
+explicit opt-in checkboxes. Stop it with `Ctrl+C`.
+
 ## Single address
 
 DNS checks are enabled by default. SMTP probing is opt-in because it can be rate-limited or refused by providers.
