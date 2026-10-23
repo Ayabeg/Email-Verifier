@@ -62,7 +62,13 @@ def _add_engine_options(parser: argparse.ArgumentParser) -> None:
         "--dns-timeout", type=float, default=float(os.getenv("EMAIL_VERIFIER_DNS_TIMEOUT", "3"))
     )
     parser.add_argument(
-        "--smtp-timeout", type=float, default=float(os.getenv("EMAIL_VERIFIER_SMTP_TIMEOUT", "8"))
+        "--smtp-timeout", type=float, default=float(os.getenv("EMAIL_VERIFIER_SMTP_TIMEOUT", "4"))
+    )
+    parser.add_argument(
+        "--smtp-max-seconds",
+        type=float,
+        default=float(os.getenv("EMAIL_VERIFIER_SMTP_MAX_SECONDS", "8")),
+        help="hard time budget for SMTP checks per recipient",
     )
     parser.add_argument(
         "--classifier-file", type=Path, help="newline-delimited disposable domain dataset"
@@ -78,6 +84,7 @@ def _engine_from_args(args: argparse.Namespace) -> VerificationEngine:
         sender=args.sender,
         dns_timeout=max(0.1, args.dns_timeout),
         smtp_timeout=max(0.1, args.smtp_timeout),
+        smtp_max_total_seconds=max(0.1, args.smtp_max_seconds),
         classifier_data=data,
     )
     return VerificationEngine(config)

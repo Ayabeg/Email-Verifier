@@ -94,7 +94,7 @@ CLI flags take precedence over the example environment settings in `.env.example
 
 Network and SMTP behavior are injected behind interfaces, so the test suite uses deterministic fakes and does not contact arbitrary mailboxes or external providers.
 
-When SMTP is enabled, at most three MX hosts are attempted per address by default. MX targets are resolved before connection and non-public destinations are rejected to reduce SSRF-style risk. These controls do not replace operator authorization or provider terms.
+When SMTP is enabled, at most two MX hosts are attempted per address by default, with a four-second per-connection timeout and an eight-second total SMTP budget. MX targets are resolved before connection and non-public destinations are rejected to reduce SSRF-style risk. These controls do not replace operator authorization or provider terms.
 
 ## Privacy and responsible operation
 

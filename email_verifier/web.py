@@ -99,10 +99,6 @@ PAGE_TEMPLATE = """<!doctype html>
 <body>
   <main>
     <h1>Email Verifier</h1>
-    <p class="muted">Local test interface. Results are signals, not a guarantee of
-      inbox delivery.</p>
-    <p class="notice">This server listens on 127.0.0.1 only. SMTP and catch-all
-      checks are opt-in and should only be used where you have permission.</p>
     <form method="post" action="/verify">
       <label>Email address
         <input type="email" name="email" value="__EMAIL__" required autocomplete="off" autofocus>

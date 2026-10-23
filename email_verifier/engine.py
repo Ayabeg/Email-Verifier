@@ -26,9 +26,10 @@ class VerificationConfig:
     catch_all_enabled: bool = False
     sender: str = "verif.mail.evotechly@gmail.com"
     dns_timeout: float = 3.0
-    smtp_timeout: float = 8.0
+    smtp_timeout: float = 4.0
+    smtp_max_total_seconds: float = 8.0
     smtp_tls_mode: str = "opportunistic"
-    max_mx_hosts: int = 3
+    max_mx_hosts: int = 2
     max_catch_all_probes: int = 1
     classifier_data: ClassifierData | None = None
     resolver: DomainResolver | None = None
@@ -49,6 +50,7 @@ class VerificationEngine:
             SmtpConfig(
                 sender=self.config.sender,
                 timeout=self.config.smtp_timeout,
+                max_total_seconds=self.config.smtp_max_total_seconds,
                 tls_mode=self.config.smtp_tls_mode,
                 max_hosts=self.config.max_mx_hosts,
             )
