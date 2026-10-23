@@ -2,7 +2,7 @@ import threading
 import unittest
 from http.client import HTTPConnection
 
-from email_verifier.web import create_server
+from email_verifier.web import create_server, render_page
 
 
 class LocalWebTests(unittest.TestCase):
@@ -49,6 +49,20 @@ class LocalWebTests(unittest.TestCase):
         response, payload = self.request("POST", "/verify", "email=not-an-email")
         self.assertEqual(response.status, 200)
         self.assertIn("Invalid address", payload.decode("utf-8"))
+
+    def test_success_result_without_reason_codes_is_rendered(self):
+        page = render_page(
+            email="person@example.com",
+            result={
+                "status": "valid",
+                "original_email": "person@example.com",
+                "normalized_email": "person@example.com",
+                "reason_codes": [],
+                "stages_completed": ["syntax", "dns", "smtp"],
+            },
+        ).decode("utf-8")
+        self.assertIn("Likely deliverable", page)
+        self.assertIn("The available checks were not conclusive.", page)
 
     def test_unknown_route_is_not_found(self):
         response, _ = self.request("GET", "/missing")

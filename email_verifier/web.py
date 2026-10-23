@@ -139,7 +139,8 @@ def render_page(
         label = STATUS_LABELS.get(status, "Unknown result")
         meaning = STATUS_MEANINGS.get(status, STATUS_MEANINGS["unknown"])
         reasons = result.get("reason_codes") or []
-        reason = REASON_LABELS.get(str(reasons[0]), "The available checks were not conclusive.")
+        first_reason = str(reasons[0]) if reasons else ""
+        reason = REASON_LABELS.get(first_reason, "The available checks were not conclusive.")
         normalized = result.get("normalized_email") or "Not available"
         stages = result.get("stages_completed") or ["None"]
         serialized = html.escape(json.dumps(result, ensure_ascii=False, indent=2))
